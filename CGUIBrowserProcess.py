@@ -1,11 +1,15 @@
 import shutil
 import os.path
 import time
-from multiprocessing import Process, Queue
+from multiprocessing import Process
 from os.path import join as pjoin
 from splinter import Browser
-from splinter.exceptions import ElementDoesNotExist
 from selenium.common.exceptions import TimeoutException
+
+# Keys
+BROWSER_TYPE = 'browser_type'
+BASE_URL = 'base_url'
+
 
 class CGUIBrowserProcess(Process):
     """Usage: subclass this class and write an init_system() method.
@@ -21,19 +25,19 @@ class CGUIBrowserProcess(Process):
 
     def __init__(self, todo_q, done_q, **kwargs):
         """Setup Queues, browser settings, and delegate rest to multiprocessing.Process"""
-        if not 'browser_type' in kwargs:
-            kwargs['browser_type'] = 'chrome'
-        self.browser_type = kwargs['browser_type']
-        del kwargs['browser_type']
+        if BROWSER_TYPE not in kwargs:
+            kwargs[BROWSER_TYPE] = 'chrome'
+        self.browser_type = kwargs[BROWSER_TYPE]
+        del kwargs[BROWSER_TYPE]
 
-        if not 'base_url' in kwargs:
-            kwargs['base_url'] = 'http://charmm-gui.org/'
-        self.base_url = kwargs['base_url']
+        if BASE_URL not in kwargs:
+            kwargs[BASE_URL] = 'http://charmm-gui.org/'
+        self.base_url = kwargs[BASE_URL]
         if not self.base_url.endswith('/'):
             self.base_url += '/'
-        del kwargs['base_url']
+        del kwargs[BASE_URL]
 
-        if not 'www_dir' in kwargs:
+        if 'www_dir' not in kwargs:
             kwargs['www_dir'] = None
         self.www_dir = kwargs['www_dir']
         del kwargs['www_dir']
@@ -209,14 +213,12 @@ class CGUIBrowserProcess(Process):
                     # early failure?
                     if failure:
                         self.done_q.put(('FAILURE', test_case, step_num, elapsed_time))
-                        failure = False
                         continue
 
                     # late failure?
                     found_text = self.wait_text_multi([test_case['final_wait_text'], self.CHARMM_ERROR])
                     if found_text == self.CHARMM_ERROR:
                         self.done_q.put(('FAILURE', test_case, step_num, elapsed_time))
-                        failure = False
                     else:
                         self.done_q.put(('SUCCESS', test_case, elapsed_time))
                 except Exception as e:

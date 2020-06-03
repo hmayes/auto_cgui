@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import os
-import shutil
-import sys
 import yaml
 from importlib import import_module
 from multiprocessing import Queue
@@ -12,16 +10,18 @@ from os.path import join as pjoin
 with open('modules.yml') as fh:
     cgui_modules = yaml.load(fh, Loader=yaml.FullLoader)
 
+
 def log_exception(case_info, step_num, exc_info):
     global LOGFILE
     templ = 'Job "{}" ({}) encountered an exception on step {}:\n{}\n'
-    if not 'jobid' in case_info:
+    if 'jobid' not in case_info:
         case_info['jobid'] = '-1'
     jobid = case_info['jobid']
     label = case_info['label']
     with open(LOGFILE, 'a') as fh:
         label = case_info['label']
         fh.write(templ.format(label, jobid, step_num, exc_info))
+
 
 def log_failure(case_info, step, elapsed_time):
     global LOGFILE
