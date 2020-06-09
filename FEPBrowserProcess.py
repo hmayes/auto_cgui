@@ -1,9 +1,7 @@
-import os
-import time
 from os.path import join as pjoin
-from splinter import Browser
 from splinter.exceptions import ElementDoesNotExist
 from CGUIBrowserProcess import CGUIBrowserProcess
+
 
 def init_module(test_cases, args):
     """Preprocesses test cases
@@ -16,7 +14,7 @@ def init_module(test_cases, args):
     base_cases = []
     wait_cases = {}
     for test_case in test_cases:
-        if not 'solvator_tests' in test_case:
+        if 'solvator_tests' not in test_case:
             base_cases.append(test_case)
         else:
             do_copy = args.copy
@@ -30,10 +28,11 @@ def init_module(test_cases, args):
                 base_cases += cases
     return base_cases, wait_cases
 
+
 def handle_solvator_tests(test_case, do_copy=False):
     if not 'solvator_tests' in  test_case:
         raise ValueError("Missing 'solvator_tests'")
-    solvtor_tests = test_case[solvent_tests]
+    solvtor_tests = test_case['solvent_tests']
 
     placeholder = 'SOLVATOR_TEST_PLACEHOLDER'
     found = False
@@ -60,6 +59,7 @@ def handle_solvator_tests(test_case, do_copy=False):
 
     return cases
 
+
 class FEPBrowserProcess(CGUIBrowserProcess):
     def find_lig_row(self, lig_name, step):
         """Returns the row element page corresponding to the given uploaded
@@ -74,7 +74,7 @@ class FEPBrowserProcess(CGUIBrowserProcess):
             if row.text == lig_name:
                 found = True
                 break
-        if  not found:
+        if not found:
             raise ElementDoesNotExist("Could not find ligand: " + lig_name)
         lig_row = row.find_by_xpath('..')
         return lig_row
@@ -95,10 +95,12 @@ class FEPBrowserProcess(CGUIBrowserProcess):
 #            num_ligs = rows.find_by_css("[name^=num_ligands")
 #            num_ligs.fill(lig_info['count'])
 
-    def init_system(self, fep_case):
-#        url = self.base_url + "?doc=input/asolvating"
-        url = self.base_url + "?doc=input/rsolvating"
+    def init_system(self, fep_case, resume=False):
+        if not resume:
+            return
+
         browser = self.browser
+        url = self.base_url + "?doc=input/rsolvating"
         browser.visit(url)
 
         # attach files for this test case

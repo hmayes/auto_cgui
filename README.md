@@ -1,9 +1,11 @@
 ## About This Repository
-This repository demonstrates how to automate browser interactions for CHARMM-GUI. The examples provided here test the basic functionality of the CHARMM-GUI module Multicomponent Assembler (MCA), but with minimal work, it should be possible to automate any system creation through MCA.
+This repository demonstrates how to automate browser interactions for CHARMM-GUI. The examples provided here test the 
+basic functionality of the CHARMM-GUI module Multicomponent Assembler (MCA), but with minimal work, it should be 
+possible to automate any system creation through MCA.
 
 ## Prerequisites
  - Python 3
- - [Selenium](https://splinter.readthedocs.io/en/latest/drivers/chrome.html)
+ - [Selenium](https://splinter.readthedocs.io/en/latest/drivers/chrome.html) (see the specific chrome driver installation info)
  - [Splinter](https://splinter.readthedocs.io/en/latest/)
 
 ## Usage
@@ -12,7 +14,8 @@ First create a configuration file that points to your CGUI project's `/data/www/
 BASE_URL: http://localhost:8888/
 WWW_DIR: /Users/nathan/multicomp/www
 ```
-This file should be named `config.yml` and be located in the same directory as `run_tests.py`. The `BASE_URL` shown above is for alpha tests. For beta tests, `BASE_URL` should be `http://beta.charmm-gui.org/`, and for production tests, the entry can be omitted. If you are using the beta server, you must also include a `USER` and `PASS` entry.
+This file should be named `config.yml` and be located in the same directory as `run_tests.py`. The `BASE_URL` shown 
+above is for alpha tests. For beta tests, `BASE_URL` should be `http://beta.charmm-gui.org/`, and for production tests, the entry can be omitted. If you are using the beta server, you must also include a `USER` and `PASS` entry.
 
 To run the testing program, execute:
 `$ ./run_tests.py [opts]`
@@ -44,6 +47,9 @@ Next, extend the `CGUIBrowserProcess` class. See the example in `MCABrowserProce
 Finally, write tests for your project. See the examples in `test_cases/basic.yml`.
 
 ## Extending CGUIBrowserProcess
-`MCABrowserProcess` is for running tests on Multicomponent Assembler. To run tests on a different CHARMM-GUI module, you must extend the `CGUIBrowserProcess` class in a similar manner. This base class manages a Splinter [browser](https://splinter.readthedocs.io/en/latest/browser.html) instance in a thread-safe manner.
+`MCABrowserProcess` is for running tests on Multicomponent Assembler. To run tests on a different CHARMM-GUI module, 
+you must extend the `CGUIBrowserProcess` class in a similar manner. This base class manages a 
+Splinter [browser](https://splinter.readthedocs.io/en/latest/browser.html) instance in a thread-safe manner.
 
-For more information about Python's parallelism, see the [multiprocessing](https://docs.python.org/3/library/multiprocessing.html) documentation.
+For more information about Python's parallelism, see the 
+[multiprocessing](https://docs.python.org/3/library/multiprocessing.html) documentation.
