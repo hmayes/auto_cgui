@@ -6,6 +6,7 @@ import yaml
 from importlib import import_module
 from multiprocessing import Queue
 from os.path import join as pjoin
+from time import sleep
 
 # module alias (case-insensitive): base filename
 with open('modules.yml') as fh:
@@ -147,6 +148,7 @@ for p in processes:
 # put regular cases in the task queue
 pending = 0
 for case in base_cases:
+    sleep(0.1 * pending)
     todo_queue.put(case)
     pending += 1
 

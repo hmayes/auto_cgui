@@ -1,12 +1,12 @@
 ## About This Repository
-This repository demonstrates how to automate browser interactions for CHARMM-GUI. The examples provided here test the 
-basic functionality of the CHARMM-GUI module Multicomponent Assembler (MCA), but with minimal work, it should be 
-possible to automate any system creation through MCA.
+This repository demonstrates how to automate browser interactions for CHARMM-GUI. The examples provided here test the basic functionality of the CHARMM-GUI module Multicomponent Assembler (MCA), but with minimal work, it should be possible to automate any system creation through MCA.
 
 ## Prerequisites
  - Python 3
- - [Selenium](https://splinter.readthedocs.io/en/latest/drivers/chrome.html) (see the specific chrome driver installation info)
+ - [Selenium](https://splinter.readthedocs.io/en/latest/drivers/chrome.html) (if using Chrome)
+ - [geckodriver](https://github.com/mozilla/geckodriver/releases) (if using Firefox)
  - [Splinter](https://splinter.readthedocs.io/en/latest/)
+ - [PyAML](https://pyyaml.org/)
 
 ## Usage
 First create a configuration file that points to your CGUI project's `/data/www/` directory. E.g.:

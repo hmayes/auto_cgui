@@ -4,3 +4,4 @@ __pycache__/*
 results.log
 config.yml
 /auto_cgui.iml
+.idea
