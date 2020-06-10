@@ -100,3 +100,8 @@ ENV/
 
 # mypy
 .mypy_cache/
+/cgui-wrangler.iml
+temp*
+/config.yml
+/modules.yml
+.idea/
