@@ -12,11 +12,13 @@ import argparse
 import os
 import sys
 import yaml
+from pathlib import Path
 from configparser import ConfigParser
 from importlib import import_module
 from time import sleep
 from multiprocessing import Queue
-from common_wrangler.common import (process_cfg, INPUT_ERROR, GOOD_RET, MAIN_SEC, warning)
+from common_wrangler.common import (process_cfg, INPUT_ERROR, GOOD_RET, MAIN_SEC, warning, InvalidDataError,
+                                    INVALID_DATA)
 from auto_cgui.cgui_common import (BASE_URL, BROWSER, PAUSE, WWW_DIR, INTERACTIVE, TEST_NAME)
 
 SOURCES_DIR = os.path.dirname(__file__)
@@ -191,93 +193,97 @@ def main(argv=None):
 
     cfg = args.config
 
-    logfile = cfg[LOG_FILE]
-    # indicate whether logfile already exists
-    if os.path.exists(logfile):
-        print("Appending to existing logfile:", logfile)
-    else:
-        print("Creating new logfile:", logfile)
+    try:
+        logfile = cfg[LOG_FILE]
+        # indicate whether logfile already exists
+        if os.path.exists(logfile):
+            print("Appending to existing logfile:", logfile)
+        else:
+            print("Creating new logfile:", logfile)
 
-    # base_url = cfg[BASE_URL].split('/')
-    # base_url[2] = cfg[USER]+':'+cfg[PASSWORD]+'@'+base_url[2]
-    # cfg[BASE_URL] = '/'.join(base_url)
+        # base_url = cfg[BASE_URL].split('/')
+        # base_url[2] = cfg[USER]+':'+cfg[PASSWORD]+'@'+base_url[2]
+        # cfg[BASE_URL] = '/'.join(base_url)
+        www_dir = Path(cfg[WWW_DIR])
+        if not www_dir.exists():
+            raise ValueError("{cfg[WWW_DIR]} does not exist")
+        elif not www_dir.is_dir():
+            raise ValueError(cfg[WWW_DIR] + " is not a directory")
 
-    if not os.path.exists(cfg[WWW_DIR]):
-        raise ValueError(cfg[WWW_DIR] + " does not exist")
-    elif not os.path.isdir(cfg[WWW_DIR]):
-        raise ValueError(cfg[WWW_DIR] + " is not a directory")
+        if cfg[MODULE] in CGUI_MODULES.keys():
+            module_file = CGUI_MODULES[cfg[MODULE]]
+        else:
+            raise ValueError(f'Unknown C-GUI module: {cfg[MODULE]}. Available modules are: {CGUI_MODULES.keys()}')
 
-    if cfg[MODULE] in CGUI_MODULES.keys():
-        module_file = CGUI_MODULES[cfg[MODULE]]
-    else:
-        raise ValueError(f'Unknown C-GUI module: {cfg[MODULE]}. Available modules are: {CGUI_MODULES.keys()}')
+        # import relevant names from the module file
+        module = import_module(module_file)
+        init_module = getattr(module, 'init_module')
+        browser_process = getattr(module, module_file)
 
-    # import relevant names from the module file
-    module = import_module(module_file)
-    init_module = getattr(module, 'init_module')
-    browser_process = getattr(module, module_file)
+        test_case_path = os.path.join(cfg[TEST_DIR], cfg[MODULE].lower(), cfg[TEST_NAME])
+        with open(test_case_path) as fh:
+            test_cases = yaml.load(fh, Loader=yaml.FullLoader)
 
-    test_case_path = os.path.join(cfg[TEST_DIR], cfg[MODULE].lower(), cfg[TEST_NAME])
-    with open(test_case_path) as fh:
-        test_cases = yaml.load(fh, Loader=yaml.FullLoader)
+        base_cases, wait_cases = init_module(test_cases, args)
 
-    base_cases, wait_cases = init_module(test_cases, args)
+        todo_queue = Queue()
+        done_queue = Queue()
+        processes = [browser_process(todo_queue, done_queue, cfg) for _ in range(cfg[NUM_THREADS])]
 
-    todo_queue = Queue()
-    done_queue = Queue()
-    processes = [browser_process(todo_queue, done_queue, cfg) for _ in range(cfg[NUM_THREADS])]
+        # initialize browser processes
+        for p in processes:
+            p.start()
 
-    # initialize browser processes
-    for p in processes:
-        p.start()
-
-    # put regular cases in the task queue
-    pending = 0
-    for case in base_cases:
-        sleep(0.1 * pending)
-        todo_queue.put(case)
-        pending += 1
-
-    # main communication loop
-    while pending:
-        result = done_queue.get()
-        pending -= 1
-        if result[0] == 'SUCCESS':
-            done_case, elapsed_time = result[1:]
-            # done_label = done_case['label']
-            # done_jobid = str(done_case[JOB_ID])
-            log_success(logfile, done_case, elapsed_time)
-        elif result[0] == 'FAILURE':
-            done_case, step_num, elapsed_time = result[1:]
-            log_failure(logfile, done_case, step_num, elapsed_time)
-        elif result[0] == 'EXCEPTION':
-            done_case, step_num, exc_info = result[1:]
-            # elapsed_time = -1 # don't report time for exceptions
-            log_exception(logfile, done_case, step_num, exc_info)
-            warning("Exception encountered for job ({})".format(done_case[JOB_ID]))
-            warning(exc_info)
-        elif result[0] == 'CONTINUE':
+        # put regular cases in the task queue
+        pending = 0
+        for case in base_cases:
+            sleep(0.1 * pending)
+            todo_queue.put(case)
             pending += 1
-            done_case = result[1]
-            done_label = done_case['label']
-            # are any tasks waiting on this one?
-            if done_label in wait_cases:
-                done_jobid = str(done_case[JOB_ID])
-                for num, wait_case in enumerate(wait_cases[done_label]):
-                    if args.copy:
-                        wait_case[JOB_ID] = done_jobid + '_' + str(num + 1)
-                        wait_case['resume_link'] = done_case['solvent_link']
-                    todo_queue.put(wait_case)
-                    pending += 1
-                del wait_cases[done_label]
 
-    # signal to stop
-    for _ in processes:
-        todo_queue.put('STOP')
+        # main communication loop
+        while pending:
+            result = done_queue.get()
+            pending -= 1
+            if result[0] == 'SUCCESS':
+                done_case, elapsed_time = result[1:]
+                # done_label = done_case['label']
+                # done_jobid = str(done_case[JOB_ID])
+                log_success(logfile, done_case, elapsed_time)
+            elif result[0] == 'FAILURE':
+                done_case, step_num, elapsed_time = result[1:]
+                log_failure(logfile, done_case, step_num, elapsed_time)
+            elif result[0] == 'EXCEPTION':
+                done_case, step_num, exc_info = result[1:]
+                # elapsed_time = -1 # don't report time for exceptions
+                log_exception(logfile, done_case, step_num, exc_info)
+                warning("Exception encountered for job ({})".format(done_case[JOB_ID]))
+                warning(exc_info)
+            elif result[0] == 'CONTINUE':
+                pending += 1
+                done_case = result[1]
+                done_label = done_case['label']
+                # are any tasks waiting on this one?
+                if done_label in wait_cases:
+                    done_jobid = str(done_case[JOB_ID])
+                    for num, wait_case in enumerate(wait_cases[done_label]):
+                        if args.copy:
+                            wait_case[JOB_ID] = done_jobid + '_' + str(num + 1)
+                            wait_case['resume_link'] = done_case['solvent_link']
+                        todo_queue.put(wait_case)
+                        pending += 1
+                    del wait_cases[done_label]
 
-    # clean up
-    for p in processes:
-        p.join()
+        # signal to stop
+        for _ in processes:
+            todo_queue.put('STOP')
+
+        # clean up
+        for p in processes:
+            p.join()
+    except (InvalidDataError, KeyError) as e:
+        warning(e)
+        return INVALID_DATA
 
     return GOOD_RET  # success
 
