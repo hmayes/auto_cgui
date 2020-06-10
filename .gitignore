@@ -3,3 +3,6 @@ __pycache__/*
 *.log
 results.log
 config.yml
+.idea/
+auto_cgui.iml
+
