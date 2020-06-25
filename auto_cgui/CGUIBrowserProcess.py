@@ -7,7 +7,9 @@ from multiprocessing import Process
 from os.path import join as pjoin
 from splinter import Browser
 from selenium.common.exceptions import TimeoutException
-from auto_cgui.cgui_common import (BROWSER, BASE_URL, WWW_DIR, PAUSE, INTERACTIVE, TEST_NAME)
+
+from auto_cgui.cgui_common import (BROWSER, BASE_URL, WWW_DIR, PAUSE, INTERACTIVE, TEST_NAME, INTER_QUEUE, MSG_QUEUE,
+                                   LOG_FILE, COPY, MODULE, JOB_ID, NUM_THREADS, PASSWORD, USER, TEST_DIR, MODULE_SCRIPT)
 
 
 class CGUIBrowserProcess(Process):
@@ -22,7 +24,7 @@ class CGUIBrowserProcess(Process):
     PHP_FATAL_ERROR = "Fatal error:"
     PHP_MESSAGES = PHP_NOTICE, PHP_WARNING, PHP_ERROR
 
-    def __init__(self, todo_q, done_q, cfg):
+    def __init__(self, todo_q, done_q, **cfg):
         """Setup Queues, browser settings, and delegate rest to multiprocessing.Process"""
         self.test_case = cfg[TEST_NAME]
         self.browser_type = cfg[BROWSER]
@@ -31,10 +33,12 @@ class CGUIBrowserProcess(Process):
         self.pause = cfg[PAUSE]
         self.interactive = cfg[INTERACTIVE]
         if self.interactive:
-            self.inter_q = cfg['inter_q']
-            self.msg_q = cfg['msg_q']
+            self.inter_q = cfg[INTER_QUEUE]
+            self.msg_q = cfg[MSG_QUEUE]
 
-        super().__init__(cfg)
+        kwargs = {}
+
+        super().__init__(**kwargs)
         self.todo_q = todo_q
         self.done_q = done_q
 
@@ -161,6 +165,7 @@ class CGUIBrowserProcess(Process):
             table = browser.find_by_css("#recovery_table tr:not(:first-child) td:nth-child(3)")
             table[link_no].click()
 
+    # noinspection PyAttributeOutsideInit
     def run(self):
         with Browser(self.browser_type) as browser:
             # noinspection PyAttributeOutsideInit
@@ -182,7 +187,7 @@ class CGUIBrowserProcess(Process):
                         self.resume_step(jobid, link_no=resume_link)
                     self.init_system(test_case, resume)
 
-                    jobid = test_case['jobid']
+                    jobid = test_case[JOB_ID]
                     print(self.name, "Job ID:", jobid)
 
                     steps = test_case['steps'][resume_link:]

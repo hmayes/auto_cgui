@@ -18,15 +18,15 @@ from importlib import import_module
 from time import sleep
 from multiprocessing import Queue
 from common_wrangler.common import (process_cfg, INPUT_ERROR, GOOD_RET, MAIN_SEC, warning, InvalidDataError,
-                                    INVALID_DATA)
-from auto_cgui.cgui_common import (BASE_URL, BROWSER, PAUSE, WWW_DIR, INTERACTIVE, TEST_NAME)
+                                    INVALID_DATA, make_dir)
+from auto_cgui.cgui_common import (BASE_URL, BROWSER, PAUSE, WWW_DIR, INTERACTIVE, TEST_NAME, INTER_QUEUE, MSG_QUEUE,
+                                   LOG_FILE, COPY, MODULE, NUM_THREADS, PASSWORD, TEST_DIR, USER, MODULE_SCRIPT, JOB_ID)
 
 SOURCES_DIR = os.path.dirname(__file__)
 
 # defaults and config keys
 DEF_BASE_URL = 'http://beta.charmm-gui.org/'
 DEF_BROWSER = 'chrome'
-DEF_WWW_DIR = 'http://localhost:8888/'
 DEF_LOG_FNAME = 'results.log'
 DEF_TEST_NAME = 'basic.yml'
 DEF_TEST_DIR = os.path.join(SOURCES_DIR, 'test_cases')
@@ -34,16 +34,9 @@ DEF_TEST_DIR = os.path.join(SOURCES_DIR, 'test_cases')
 FEP = 'FEP'
 MCA = 'MCA'
 POLYMER = 'POLYMER'
-CGUI_MODULES = {FEP: 'FEPBrowserProcess', MCA: 'MCABrowserProcess', POLYMER: 'PBBrowserProcess'}
-
-COPY = 'copy'
-JOB_ID = 'jobid'
-LOG_FILE = 'log_file'
-MODULE = 'module'
-NUM_THREADS = 'num_threads'
-PASSWORD = 'password'
-TEST_DIR = 'test_dir'
-USER = 'user'
+CGUI_MODULES = {FEP: 'FEPBrowserProcess',
+                MCA: 'MCABrowserProcess',
+                POLYMER: 'PBBrowserProcess'}
 
 # JOBID = 'jobid'
 
@@ -60,7 +53,7 @@ DEF_CFG_VALS = {BASE_URL: DEF_BASE_URL,
                 TEST_DIR: DEF_TEST_DIR,
                 TEST_NAME: DEF_TEST_NAME,
                 USER: 'testing',
-                WWW_DIR: DEF_WWW_DIR,
+                WWW_DIR: None,
                 }
 
 REQ_KEYS = {}
@@ -114,6 +107,31 @@ def read_cfg(f_loc, cfg_proc=process_cfg):
     return main_proc
 
 
+def check_input(args):
+    """
+    Validate input
+    :param args: user-input and/or default args
+    :return: n/a; updated args if needed
+    """
+    if args.config[WWW_DIR] is None:
+        # make nested path if it does not exist
+        args.config[WWW_DIR] = Path.home().joinpath('.local', 'bin', 'cgui_www')
+    make_dir(args.config[WWW_DIR])
+    if args.config[MODULE] in CGUI_MODULES.keys():
+        args.config[MODULE_SCRIPT] = CGUI_MODULES[args.config[MODULE]]
+    else:
+        raise ValueError(f'Unknown C-GUI module: {args.config[MODULE]}. Available modules are: {CGUI_MODULES.keys()}')
+
+    if args.config[INTERACTIVE]:
+        if args.config[NUM_THREADS] > 1:
+            raise InvalidDataError("Error: '--interactive' flag is incompatible with 2+ threads")
+        args.config[INTER_QUEUE] = Queue()
+        args.config[MSG_QUEUE] = Queue()
+    else:
+        args.config[INTER_QUEUE] = None
+        args.config[MSG_QUEUE] = None
+
+
 def parse_cmdline(argv):
     """
     Returns the parsed argument list and return code.
@@ -143,9 +161,9 @@ def parse_cmdline(argv):
                         help=f"Name of test to run (default: {DEF_TEST_NAME})")
     parser.add_argument('--test_dir', default=DEF_TEST_NAME,
                         help=f"Name of test to run (default: {os.path.relpath(DEF_TEST_DIR)})")
-    parser.add_argument('-w', '--www_dir', metavar="PATH", default=DEF_WWW_DIR,
-                        help=f"Directory where C-GUI projects are stored, e.g. `/Users/user_name/multicomp/www`. "
-                             f"Default value is {DEF_WWW_DIR}.")
+    parser.add_argument('-w', '--www_dir', metavar="PATH",
+                        help=f"Directory where C-GUI projects are stored, e.g. `$HOME/.local/bin/cgui_www`. "
+                             f"This is the default location; such a folder will be created if it does not exist.")
     parser.add_argument('--copy', action='store_true',
                         help="For tests on localhost, run solvent tests by cloning the project at the solvent test's "
                              "branch point; saves time, but can cause errors if the request cache is corrupted")
@@ -170,6 +188,7 @@ def parse_cmdline(argv):
         for config_key, arg_val in conf_arg_dict.items():
             if not (arg_val == DEF_CFG_VALS[config_key]):
                 args.config[config_key] = arg_val
+        check_input(args)
     except (KeyError, IOError, SystemExit) as e:
         if hasattr(e, 'code') and e.code == 0:
             return args, GOOD_RET
@@ -201,24 +220,10 @@ def main(argv=None):
         else:
             print("Creating new logfile:", logfile)
 
-        # base_url = cfg[BASE_URL].split('/')
-        # base_url[2] = cfg[USER]+':'+cfg[PASSWORD]+'@'+base_url[2]
-        # cfg[BASE_URL] = '/'.join(base_url)
-        www_dir = Path(cfg[WWW_DIR])
-        if not www_dir.exists():
-            raise ValueError("{cfg[WWW_DIR]} does not exist")
-        elif not www_dir.is_dir():
-            raise ValueError(cfg[WWW_DIR] + " is not a directory")
-
-        if cfg[MODULE] in CGUI_MODULES.keys():
-            module_file = CGUI_MODULES[cfg[MODULE]]
-        else:
-            raise ValueError(f'Unknown C-GUI module: {cfg[MODULE]}. Available modules are: {CGUI_MODULES.keys()}')
-
         # import relevant names from the module file
-        module = import_module(module_file)
+        module = import_module('..' + cfg[MODULE_SCRIPT], package='auto_cgui.' + cfg[MODULE_SCRIPT])
         init_module = getattr(module, 'init_module')
-        browser_process = getattr(module, module_file)
+        browser_process = getattr(module, cfg[MODULE_SCRIPT])
 
         test_case_path = os.path.join(cfg[TEST_DIR], cfg[MODULE].lower(), cfg[TEST_NAME])
         with open(test_case_path) as fh:
@@ -228,7 +233,8 @@ def main(argv=None):
 
         todo_queue = Queue()
         done_queue = Queue()
-        processes = [browser_process(todo_queue, done_queue, cfg) for _ in range(cfg[NUM_THREADS])]
+
+        processes = [browser_process(todo_queue, done_queue, **cfg) for _ in range(cfg[NUM_THREADS])]
 
         # initialize browser processes
         for p in processes:

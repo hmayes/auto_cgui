@@ -214,6 +214,7 @@ class MCABrowserProcess(CGUIBrowserProcess):
 
     def init_system(self, test_case, resume=False):
         browser = self.browser
+        # noinspection PyAttributeOutsideInit
         self.components = test_case['components']
 
         if not resume:
