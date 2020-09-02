@@ -138,11 +138,23 @@ if args.interactive:
 else:
     inter_queue = None
     msg_queue = None
-processes = [BrowserProcess(todo_queue, done_queue, www_dir=WWW_DIR, base_url=BASE_URL, pause=args.pause, browser_type=browser_type, interactive=args.interactive, inter_q=inter_queue, msg_q=msg_queue) for i in range(args.num_threads)]
 
-# initialize browser processes
-for p in processes:
-    p.start()
+processes = [BrowserProcess(todo_queue, done_queue, www_dir=WWW_DIR, base_url=BASE_URL, pause=args.pause, browser_type=browser_type, interactive=args.interactive,
+                            inter_q=inter_queue, msg_q=msg_queue)]
+#
+# processes = [BrowserProcess(todo_queue, done_queue, www_dir=WWW_DIR, base_url=BASE_URL, pause=args.pause,
+# browser_type=browser_type, interactive=args.interactive,
+#                             inter_q=inter_queue, msg_q=msg_queue) for i in range(args.num_threads)]
+#
+# # initialize browser processes
+# for p in processes:
+#     print("I started the process")
+#     p.start()
+
+p = BrowserProcess(todo_queue, done_queue, www_dir=WWW_DIR, base_url=BASE_URL, pause=args.pause, browser_type=browser_type, interactive=args.interactive,
+                   inter_q=inter_queue, msg_q=msg_queue)
+p.start()
+
 
 # put regular cases in the task queue
 pending = 0
